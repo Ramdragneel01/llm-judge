@@ -2,6 +2,10 @@
 
 Production-grade LLM response evaluation framework with a scorer API and leaderboard dashboard.
 
+## UI Preview
+
+![llm-judge dashboard overview](docs/assets/dashboard-overview.png)
+
 ## What It Does
 
 - Evaluates candidate responses on factuality, coherence, hallucination risk, and safety
