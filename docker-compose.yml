@@ -1,0 +1,34 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      LLM_JUDGE_ENV: ${LLM_JUDGE_ENV:-development}
+      LLM_JUDGE_ALLOWED_HOSTS: ${LLM_JUDGE_ALLOWED_HOSTS:-localhost,127.0.0.1,backend,testserver}
+      LLM_JUDGE_CORS_ORIGINS: ${LLM_JUDGE_CORS_ORIGINS:-http://localhost:8090,http://127.0.0.1:8090}
+      LLM_JUDGE_MAX_PAYLOAD_BYTES: ${LLM_JUDGE_MAX_PAYLOAD_BYTES:-8388608}
+      LLM_JUDGE_GZIP_MINIMUM_SIZE: ${LLM_JUDGE_GZIP_MINIMUM_SIZE:-1024}
+      LLM_JUDGE_ENABLE_HSTS: ${LLM_JUDGE_ENABLE_HSTS:-false}
+      LLM_JUDGE_PORT: ${LLM_JUDGE_PORT:-8010}
+      LLM_JUDGE_DB_PATH: ${LLM_JUDGE_DB_PATH:-/app/data/llm_judge.db}
+      LLM_JUDGE_RATE_LIMIT_PER_MINUTE: ${LLM_JUDGE_RATE_LIMIT_PER_MINUTE:-120}
+      LLM_JUDGE_STRICT_PROVIDER: ${LLM_JUDGE_STRICT_PROVIDER:-false}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    volumes:
+      - ./backend/data:/app/data
+    ports:
+      - "8010:8010"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8010}
+    ports:
+      - "8090:8090"
+    depends_on:
+      - backend
