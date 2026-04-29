@@ -48,6 +48,7 @@ class Settings:
     db_path: str
     rate_limit_per_minute: int
     strict_provider: bool
+    api_key: str
     openai_api_key: str
     anthropic_api_key: str
     gemini_api_key: str
@@ -85,6 +86,7 @@ def load_settings() -> Settings:
             min_value=10,
         ),
         strict_provider=_parse_bool(os.getenv("LLM_JUDGE_STRICT_PROVIDER"), default=False),
+        api_key=os.getenv("LLM_JUDGE_API_KEY", "").strip(),
         openai_api_key=os.getenv("OPENAI_API_KEY", "").strip(),
         anthropic_api_key=os.getenv("ANTHROPIC_API_KEY", "").strip(),
         gemini_api_key=os.getenv("GEMINI_API_KEY", "").strip(),
