@@ -4,13 +4,16 @@
 
 1. Liveness: `GET /health`
 2. Readiness: `GET /ready`
+3. Liveness alias: `GET /healthz`
+4. Readiness alias: `GET /readyz`
 
 ## Suggested Alerts
 
 1. Liveness failures for 2+ minutes.
 2. 5xx response rate above 2% over 5 minutes.
 3. Rate-limited traffic spikes (`429`) indicating abusive or misconfigured clients.
-4. Sudden drop in average final score across top-ranked models.
+4. Unexpected loss of `X-Request-ID` header in API responses.
+5. Sudden drop in average final score across top-ranked models.
 
 ## Incident Triage
 

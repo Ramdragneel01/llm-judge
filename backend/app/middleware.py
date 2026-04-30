@@ -6,10 +6,29 @@ from time import monotonic
 from typing import Deque, Dict
 from uuid import uuid4
 
-from fastapi import HTTPException, status
+from fastapi import status
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import JSONResponse, Response
+
+
+def _request_id_from_request(request: Request) -> str:
+    """Resolve request id from middleware state or fallback headers."""
+    request_id = getattr(request.state, "request_id", None)
+    if isinstance(request_id, str) and request_id:
+        return request_id
+    return request.headers.get("X-Request-ID", str(uuid4()))
+
+
+def _error_payload(request: Request, code: str, message: str) -> dict[str, object]:
+    """Build normalized middleware error payloads."""
+    return {
+        "error": {
+            "code": code,
+            "message": message,
+            "request_id": _request_id_from_request(request),
+        }
+    }
 
 
 class PayloadSizeLimitMiddleware(BaseHTTPMiddleware):
@@ -26,12 +45,19 @@ class PayloadSizeLimitMiddleware(BaseHTTPMiddleware):
             try:
                 parsed = int(content_length)
                 if parsed > self.max_payload_bytes:
-                    raise HTTPException(
+                    return JSONResponse(
                         status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                        detail="request payload too large",
+                        content=_error_payload(
+                            request,
+                            code="payload_too_large",
+                            message="request payload too large",
+                        ),
                     )
             except ValueError:
-                raise HTTPException(status_code=400, detail="invalid content-length header")
+                return JSONResponse(
+                    status_code=400,
+                    content=_error_payload(request, code="bad_request", message="invalid content-length header"),
+                )
 
         return await call_next(request)
 
@@ -84,14 +110,18 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
 class SimpleRateLimitMiddleware(BaseHTTPMiddleware):
     """Apply an in-memory fixed-window limit per client IP."""
 
-    def __init__(self, app, max_requests_per_minute: int):
+    def __init__(self, app, max_requests_per_minute: int, exempt_paths: set[str] | None = None):
         super().__init__(app)
         self.max_requests_per_minute = max_requests_per_minute
         self.window_seconds = 60.0
+        self.exempt_paths = exempt_paths or set()
         self.request_log: Dict[str, Deque[float]] = defaultdict(deque)
 
     async def dispatch(self, request: Request, call_next):
         """Track request timestamps and block traffic above configured limits."""
+        if request.method == "OPTIONS" or request.url.path in self.exempt_paths:
+            return await call_next(request)
+
         client_ip = request.client.host if request.client else "unknown"
         now = monotonic()
         bucket = self.request_log[client_ip]
@@ -100,10 +130,10 @@ class SimpleRateLimitMiddleware(BaseHTTPMiddleware):
             bucket.popleft()
 
         if len(bucket) >= self.max_requests_per_minute:
-            return Response(
-                content="rate limit exceeded",
+            return JSONResponse(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                media_type="text/plain",
+                content=_error_payload(request, code="rate_limited", message="rate_limited"),
+                headers={"Retry-After": "60"},
             )
 
         bucket.append(now)

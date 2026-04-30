@@ -7,6 +7,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
+from app.middleware import SimpleRateLimitMiddleware
 
 
 TEST_DB_PATH = Path(os.getenv("TEMP", ".")) / f"llm-judge-test-{uuid4().hex}.db"
@@ -69,11 +70,32 @@ def _sample_payload(provider: str = "local") -> dict[str, object]:
     }
 
 
+def _get_rate_limiter() -> SimpleRateLimitMiddleware:
+    """Resolve the installed rate limiter middleware instance from app stack."""
+    current = app.middleware_stack
+    while hasattr(current, "app"):
+        if isinstance(current, SimpleRateLimitMiddleware):
+            return current
+        current = current.app
+    raise RuntimeError("SimpleRateLimitMiddleware not found")
+
+
 def test_health_endpoint() -> None:
     """Ensure liveness endpoint returns healthy status."""
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
+
+def test_probe_alias_endpoints() -> None:
+    """Ensure compatibility probe aliases return expected statuses."""
+    health_alias = client.get("/healthz")
+    assert health_alias.status_code == 200
+    assert health_alias.json()["status"] == "ok"
+
+    ready_alias = client.get("/readyz")
+    assert ready_alias.status_code == 200
+    assert ready_alias.json()["status"] == "ready"
 
 
 def test_run_evaluation_success() -> None:
@@ -117,6 +139,9 @@ def test_limit_query_validation() -> None:
         expected_message="request_validation_failed",
         expect_details=True,
     )
+    assert response.headers.get("X-Request-ID")
+    assert response.headers.get("X-Content-Type-Options") == "nosniff"
+    assert response.headers.get("X-Frame-Options") == "DENY"
 
 
 def test_phase1_auth_required_contract(monkeypatch) -> None:
@@ -153,3 +178,30 @@ def test_phase1_error_contract_response() -> None:
         expected_message="request_validation_failed",
         expect_details=True,
     )
+
+
+def test_rate_limit_enforcement_contract() -> None:
+    """Reject excess traffic with normalized 429 payloads and tracing headers."""
+    limiter = _get_rate_limiter()
+    previous_limit = limiter.max_requests_per_minute
+
+    try:
+        limiter.max_requests_per_minute = 1
+        limiter.request_log.clear()
+
+        first = client.get("/api/v1/evals/runs")
+        assert first.status_code == 200
+
+        second = client.get("/api/v1/evals/runs")
+        _assert_error_contract(
+            second,
+            expected_status=429,
+            expected_code="rate_limited",
+            expected_message="rate_limited",
+        )
+        assert second.headers.get("X-Request-ID")
+        assert second.headers.get("X-Content-Type-Options") == "nosniff"
+        assert second.headers.get("X-Frame-Options") == "DENY"
+    finally:
+        limiter.max_requests_per_minute = previous_limit
+        limiter.request_log.clear()

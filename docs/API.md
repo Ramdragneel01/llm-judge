@@ -8,6 +8,12 @@
 2. `GET /ready`
 - Returns `{ "status": "ready" }` when API and storage are available.
 
+3. `GET /healthz`
+- Compatibility alias for `/health`.
+
+4. `GET /readyz`
+- Compatibility alias for `/ready`.
+
 ## Evaluation Endpoints
 
 1. `POST /api/v1/evals/run`
@@ -33,3 +39,15 @@ Request shape (summary):
 - `413` when payload exceeds configured max size.
 - `422` for schema validation failures.
 - `429` for rate-limited traffic.
+
+Error payload envelope:
+
+```json
+{
+	"error": {
+		"code": "rate_limited",
+		"message": "rate_limited",
+		"request_id": "f6aafcd2-25f2-4f5e-b0f6-c7446199758f"
+	}
+}
+```
