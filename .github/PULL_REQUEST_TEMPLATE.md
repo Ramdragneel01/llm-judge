@@ -21,3 +21,18 @@ Document non-obvious implementation decisions and why they are intentional.
 - [ ] Input validation and error paths reviewed
 - [ ] Security headers and deployment config reviewed
 - [ ] Keyboard and focus behavior reviewed for UI changes
+
+
+## What changed
+-
+
+## Why this change
+-
+
+## Validation
+- [ ] Local checks passed
+- [ ] Tests added or updated when behavior changed
+
+## Risk and rollout
+- Risk level:
+- Rollback plan:
